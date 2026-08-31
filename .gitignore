@@ -1,0 +1,18 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+build/
+dist/
+*.egg-info/
+
+# Local analysis notebooks and externally mounted datasets are private.
+/oracle/
+
+# LaTeX build intermediates; source and requested PDFs remain versioned.
+*.aux
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.xdv
