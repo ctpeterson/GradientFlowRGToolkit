@@ -14,8 +14,8 @@ Aligned flow times and measurement channels are estimated jointly.
 Bartlett/Newey--West is the primary positive-semidefinite full-matrix
 estimator. Multivariate batch means and scalar projected Wolff calculations
 are independent checks. Over-lugsail batch means is a named
-positive-leading-bias variation. The inherited rectangular estimator is
-retained only under an explicitly experimental name.
+positive-leading-bias variation. The inherited rectangular heuristic was
+audited and removed rather than retained as a scientific method.
 
 # The target
 
@@ -216,7 +216,8 @@ This reverses the leading asymptotic bias under the paper's assumptions.
 It is not a finite-sample guarantee and not Loewner domination of the true
 matrix. It may be inappropriate for anti-persistent histories. A lugsail
 estimate is a difference of covariance estimates and may be indefinite, so
-it is a systematic variation and any nearest-PSD projection is recorded. The
+it is a systematic variation and its fixed nearest-PSD repair is recorded as
+evidence rather than exposed as a configurable policy. The
 implementation performs the signed eigensystem calculation in the
 sample-supported row space and returns a projected low-rank factor; it does
 not materialize a dense \(p\times p\) covariance.
@@ -323,11 +324,6 @@ analysis record until an explicitly approved public dataset revision exists.
         batch_size=60,
         lugsail_scale=3,
         lugsail_weight=0.5,
-    )
-
-    # Legacy differential comparison only
-    ExperimentalRectangularLongRunCovariance(
-        window_factor=3.0
     )
 
 Evidence records estimator identity and source, history length, dimension,

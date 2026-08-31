@@ -12,6 +12,8 @@ from .core import (
     LongRunCovarianceEstimate,
     LongRunCovarianceEvidence,
     StatisticsError,
+)
+from .core import (
     correlated_values_from_factor,
     factor_spectrum,
     validate_histories,

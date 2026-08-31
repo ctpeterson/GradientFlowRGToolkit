@@ -8,7 +8,10 @@ import numpy as np
 import pytest
 
 
-def test_running_coupling_processes_and_summarizes_one_ensemble(tmp_path):
+def test_running_coupling_processes_and_summarizes_one_ensemble(
+    tmp_path,
+    capsys,
+):
     flow_times = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0]
     offsets = [-0.07, -0.05, -0.03, -0.01, 0.01, 0.03, 0.05, 0.07]
     raw_data = {
@@ -48,19 +51,107 @@ def test_running_coupling_processes_and_summarizes_one_ensemble(tmp_path):
         "excluded ensembles: 0\n"
         "measurement channels: wilson/p\n"
         "processed flow-time points: 3\n"
-        "statistics: bartlett-newey-west "
-        "[source: https://doi.org/10.2307/1913610#equation-5]\n"
-        "corrections: finite-volume-normalization "
-        "[source: https://doi.org/10.1007/JHEP11(2012)007; "
-        "domain: positive finite flow time; numerical tolerance: 1e-15; "
-        "implementation: rectangular-torus product extension, "
-        "Jacobi theta modular-series evaluation]\n"
+        "statistics:\n"
+        "  bartlett-newey-west\n"
+        "    source: https://doi.org/10.2307/1913610#equation-5\n"
+        "corrections:\n"
+        "  finite-volume-normalization\n"
+        "    source: https://doi.org/10.1007/JHEP11(2012)007\n"
+        "    domain: positive finite flow time\n"
+        "    numerical tolerance: 1e-15\n"
+        "    implementation:\n"
+        "      - rectangular-torus product extension\n"
+        "      - Jacobi theta modular-series evaluation\n"
         "covariance projections: 0/1 estimates\n"
         "maximum relative covariance adjustment: 0"
     )
     assert correction.method == "finite-volume-normalization"
     assert correction.source == "https://doi.org/10.1007/JHEP11(2012)007"
     assert "Jacobi theta modular-series evaluation" in str(result)
+    assert capsys.readouterr().out == ""
+
+
+def test_processing_verbosity_reports_ensemble_progress(tmp_path, capsys):
+    flow_times = np.arange(1.0, 8.0)
+    raw_data = {
+        "flow_times": [str(value) for value in flow_times],
+        "Ep": [
+            np.linspace(1.0, 1.1, 8).tolist()
+            for _flow_time in flow_times
+        ],
+    }
+    ensemble_file = tmp_path / "7p00_l8l8l8t16_0p00_wilson.bin"
+    with ensemble_file.open("wb") as stream:
+        pickle.dump(raw_data, stream)
+
+    betafn.RunningCoupling(nf=2).process(
+        betafn.ProcessingConfiguration(
+            dataset=betafn.DatasetConfiguration(
+                path=tmp_path,
+                flows=("wilson",),
+                observables=("p",),
+                times=(1.0, 7.0),
+            ),
+            correction=betafn.CorrectionConfiguration(
+                betafn.Correction.FiniteVolume
+            ),
+            averaging=betafn.StatisticsConfiguration(
+                betafn.BartlettLongRunCovariance(maximum_lag=0)
+            ),
+            verbosity=1,
+        )
+    )
+
+    assert capsys.readouterr().out == (
+        "Processing 1 selected ensemble(s)\n"
+        "[1/1] working on coupling=7p00, volume=l8l8l8t16, "
+        "mass=0p00, flow=wilson\n"
+        "[1/1] completed\n"
+        "Processing complete: 1 processed, 0 excluded\n"
+    )
+
+
+def test_processing_verbosity_reports_exclusion_reason(tmp_path, capsys):
+    flow_times = np.arange(1.0, 8.0)
+    valid_data = {
+        "flow_times": [str(value) for value in flow_times],
+        "Ep": [
+            np.linspace(1.0, 1.1, 8).tolist()
+            for _flow_time in flow_times
+        ],
+    }
+    invalid_data = {
+        "flow_times": [str(value) for value in flow_times],
+    }
+    for filename, raw_data in (
+        ("6p00_l8l8l8t16_0p00_wilson.bin", invalid_data),
+        ("7p00_l8l8l8t16_0p00_wilson.bin", valid_data),
+    ):
+        with (tmp_path / filename).open("wb") as stream:
+            pickle.dump(raw_data, stream)
+
+    betafn.RunningCoupling(nf=2).process(
+        betafn.ProcessingConfiguration(
+            dataset=betafn.DatasetConfiguration(
+                path=tmp_path,
+                flows=("wilson",),
+                observables=("p",),
+                times=(1.0, 7.0),
+            ),
+            correction=betafn.CorrectionConfiguration(
+                betafn.Correction.FiniteVolume
+            ),
+            averaging=betafn.StatisticsConfiguration(
+                betafn.BartlettLongRunCovariance(maximum_lag=0)
+            ),
+            verbosity=1,
+        )
+    )
+
+    assert (
+        "[1/2] excluded: measurement data do not contain Ep\n"
+        in capsys.readouterr().out
+    )
 
 
 def test_processing_accepts_a_correction_method_at_the_correction_seam(tmp_path):
@@ -263,7 +354,7 @@ def test_processing_records_covariance_projection_evidence(tmp_path):
     with ensemble_file.open("wb") as stream:
         pickle.dump(raw_data, stream)
 
-    method = betafn.ExperimentalRectangularLongRunCovariance(window_factor=3.0)
+    method = betafn.LugsailBatchMeans(batch_size=6)
     processing = betafn.ProcessingConfiguration(
         dataset=betafn.DatasetConfiguration(
             path=tmp_path,
@@ -283,8 +374,8 @@ def test_processing_records_covariance_projection_evidence(tmp_path):
     assert evidence.method == method
     assert evidence.configuration_count == configuration_count
     assert evidence.value_count == len(flow_times)
-    assert evidence.maximum_lag == 3
-    assert evidence.covariance.policy is betafn.CovarianceProjection.NearestPSD
+    assert evidence.maximum_lag is None
+    assert evidence.covariance.policy == "nearest-positive-semidefinite"
     assert evidence.covariance.projected_mode_count > 0
     assert evidence.covariance.relative_frobenius_adjustment > 0.0
     assert result.covariance_projection_count == 1

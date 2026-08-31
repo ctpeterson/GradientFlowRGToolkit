@@ -1355,35 +1355,42 @@ observed convergence sequence.
 
 # Result reporting
 
-`ProcessingResult.correction_methods` uses the evidence's
-`report_description`:
+`ProcessingResult` deduplicates complete correction evidence and renders each
+method as a vertical block. Scalar fields receive one line and implementation
+notes receive one list item each:
 
 ```python
-channel.correction.report_description
+evidence = channel.correction
 ```
 
 Representative report entries are therefore:
 
 ```text
-corrections: finite-volume-normalization
-  [source: https://doi.org/10.1007/JHEP11(2012)007;
-   domain: positive finite flow time;
-   numerical tolerance: 1e-15;
-   implementation: rectangular-torus product extension,
-   Jacobi theta modular-series evaluation]
+corrections:
+  finite-volume-normalization
+    source: https://doi.org/10.1007/JHEP11(2012)007
+    domain: positive finite flow time
+    numerical tolerance: 1e-15
+    implementation:
+      - rectangular-torus product extension
+      - Jacobi theta modular-series evaluation
 ```
 
 or
 
 ```text
-corrections: finite-lattice-tree-level-normalization
-  [source: https://doi.org/10.1007/JHEP09(2014)018;
-   flow: wilson; gauge action: w; energy: p;
-   domain: 0 < sqrt(8t)/N_s <= 1/2;
-   numerical tolerance: 1e-11;
-   implementation: rectangular-time periodic momentum sum,
-   direct requested-time spectral evaluation,
-   fixed-order per-time reduction without fast math]
+corrections:
+  finite-lattice-tree-level-normalization
+    source: https://doi.org/10.1007/JHEP09(2014)018
+    flow: wilson
+    gauge action: w
+    energy: p
+    domain: 0 < sqrt(8t)/N_s <= 1/2
+    numerical tolerance: 1e-11
+    implementation:
+      - rectangular-time periodic momentum sum
+      - direct requested-time spectral evaluation
+      - fixed-order per-time reduction without fast math
 ```
 
 For full applicability, inspect channel evidence programmatically:

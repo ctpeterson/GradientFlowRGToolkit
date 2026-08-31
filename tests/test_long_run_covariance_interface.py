@@ -9,6 +9,19 @@ import pytest
 from scipy.linalg import solve_discrete_lyapunov
 
 
+def test_legacy_rectangular_covariance_is_not_public():
+    legacy_names = (
+        "ExperimentalRectangularLongRunCovariance",
+        "GammaMethod",
+        "GammaMethodEvidence",
+    )
+    assert all(not hasattr(betafn, name) for name in legacy_names)
+
+
+def test_covariance_projection_policy_is_not_public():
+    assert not hasattr(betafn, "CovarianceProjection")
+
+
 def test_lugsail_configuration_rejects_incompatible_batch_scales():
     with pytest.raises(
         betafn.ConfigurationError,

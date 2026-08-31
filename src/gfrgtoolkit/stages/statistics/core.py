@@ -4,13 +4,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import TYPE_CHECKING, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Literal, Protocol, runtime_checkable
 
 import gvar as gv
 import numpy as np
 
 if TYPE_CHECKING:
-    from .wolff import ProjectedWolffEvidence
+    from .gamma import ProjectedWolffEvidence
 
 
 class StatisticsError(ValueError):
@@ -19,12 +19,6 @@ class StatisticsError(ValueError):
 
 class UnresolvedAutocorrelation(StatisticsError):
     """Raised when declared diagnostics do not resolve the correlation tail."""
-
-
-class CovarianceProjection(Enum):
-    """Declared treatment for an indefinite estimated covariance matrix."""
-
-    NearestPSD = "nearest-positive-semidefinite"
 
 
 class AutocorrelationResolutionStatus(Enum):
@@ -54,7 +48,7 @@ class LongRunCovarianceMethod(Protocol):
 class CovarianceProjectionEvidence:
     """Magnitude of a declared repair applied to an estimated covariance."""
 
-    policy: CovarianceProjection | None
+    policy: Literal["nearest-positive-semidefinite"] | None
     projected_mode_count: int
     minimum_eigenvalue_before: float
     maximum_eigenvalue_before: float

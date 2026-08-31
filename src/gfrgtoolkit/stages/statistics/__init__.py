@@ -6,7 +6,6 @@ from .core import (
     AutocorrelationResolutionEvidence,
     AutocorrelationResolutionStatus,
     BandwidthComparisonEvidence,
-    CovarianceProjection,
     CovarianceProjectionEvidence,
     LongRunCovarianceEstimate,
     LongRunCovarianceEvidence,
@@ -15,15 +14,8 @@ from .core import (
     UnresolvedAutocorrelation,
     UnresolvedAutocorrelationAction,
 )
-from .experimental_rectangular import (
-    ExperimentalRectangularLongRunCovariance,
-    GammaMethod,
-)
-from .lugsail_batch_means import LugsailBatchMeans
-from .wolff import ProjectedWolffEvidence, ProjectedWolffValidation
-
-# Transitional evidence alias for early notebooks.
-GammaMethodEvidence = LongRunCovarianceEvidence
+from .gamma import ProjectedWolffEvidence, ProjectedWolffValidation
+from .lugsail import LugsailBatchMeans
 
 __all__ = [
     "AutocorrelationResolutionEvidence",
@@ -31,11 +23,7 @@ __all__ = [
     "BandwidthComparisonEvidence",
     "BartlettLongRunCovariance",
     "BandwidthStabilityCheck",
-    "CovarianceProjection",
     "CovarianceProjectionEvidence",
-    "ExperimentalRectangularLongRunCovariance",
-    "GammaMethod",
-    "GammaMethodEvidence",
     "LongRunCovarianceEstimate",
     "LongRunCovarianceEvidence",
     "LongRunCovarianceMethod",

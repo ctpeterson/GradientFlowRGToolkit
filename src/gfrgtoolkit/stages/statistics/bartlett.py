@@ -1,10 +1,93 @@
-"""PSD Bartlett/Newey--West long-run covariance estimation.
+"""Modified-Bartlett multivariate spectral variance estimator
 
-The covariance can be written
+These are some notes from Curtis. Equations annotated below.
+
+Summary
+-------
+
+The Bartlett method estimates the full covariance of the sample mean
+by summing the same-configuration and lagged cross-configuration covariance while
+downweighting more distant configurations. The triangular lag window yields a
+positive semi-definite covariance matrix by construction, but correlations beyond
+the maximum lag remain unaccounted for.
+
+Details
+-------
+
+Every covariance matrix "C" is positive semidefinite; as such, it admits a
+factorization
 (1) C = F^T F.
-Bartlett and ordinary batch means calculate F directly, as opposed to forming an
-indefinite matrix and repairing it afterwards.
+For each aligned Monte Carlo configuration s = 0, ..., N - 1, let
+Xs be a vector of "p" observed values. Its entries might, for example,
+be Yang-Mills energy density measured at several flow times. Define
+(2) Zs = Xs - mean(X)
+and the unnormalized lag-product matrix
+(3) Ak = sum_{s = 0}^{N-k-1} Zs Z_{s+k}^T.
+A0 supplies the same-configuration covariance term. A1 measures whether adjacent
+configurations fluctuate together, A2 does the same for configurations separated by
+two units of Monte Carlo time, and so forth.
 
+For a declared maximum lag "m", let b = m + 1. Extend Zs by zero outside the observed
+history and form every overlapping length-"b" sum
+(4) Rl = sum_{j=0}^{b-1} Z_{l+j}
+with l = -(b - 1), ..., N - 1. The overlap between two such windows produces the
+Bartlett weights exactly [1, 2]:
+(5) (1 / b) sum_l Rl RRl^T
+    = A0 + sum_{k=1}^m wk (Ak + Ak^T)
+with wk = 1 - k / b. We estimate the covariance of the sample mean, rather than the
+unscaled multivariate long-run covariance [3]. After applying a finite-sample
+IID-centering correction
+(6) r_Nm = [(N - 1) - (2 / N) sum_{k=1}^m wk (N - k)] / N,
+it constructs a matrix ``F`` whose row for window ``l`` is
+(7) F[l, :] = R_l^T / sqrt(b N^2 r_Nm).
+Consequently,
+(8) F^T F = 1 / (N^2 r_Nm)
+            * [A0 + sum_{k=1}^m wk (Ak + Ak^T)]
+            = estimated Cov(mean(X)).
+This is a Gram matrix, so the estimate is positive semidefinite by construction and
+needs no after-the-fact eigenvalue repair. Ordinary batch means constructs an
+analogous factor from centered batch means [4].
+
+To represent the correlated estimate without necessarily materializing a
+dense covariance matrix, let "u" be a vector of independent standard-normal
+latent variables and define
+(A) x = mean(X) + F^T u.
+It follows that
+(B) Cov(x) = F^T F.
+See `correlated_values_from_factor` in `statistics/core.py` for the implementation
+of this latent-factor representation using `gvar` [7]. The optional projected scalar
+validation uses Wolff's Gamma method [5, 6].
+
+References
+----------
+[1] M. S. Bartlett, "Periodogram Analysis and Continuous Spectra,"
+    Biometrika 37 (1950) 1--16.
+    https://doi.org/10.1093/biomet/37.1-2.1
+
+[2] W. K. Newey and K. D. West, "A Simple, Positive Semi-Definite,
+    Heteroskedasticity and Autocorrelation Consistent Covariance Matrix,"
+    Econometrica 55 (1987) 703--708.
+    https://doi.org/10.2307/1913610
+
+[3] D. Vats, J. M. Flegal, and G. L. Jones, "Strong Consistency of
+    Multivariate Spectral Variance Estimators in Markov Chain Monte Carlo,"
+    Bernoulli 24 (2018) 1860--1909.
+    https://doi.org/10.3150/16-BEJ914
+
+[4] D. Vats, J. M. Flegal, and G. L. Jones, "Multivariate Output Analysis for
+    Markov Chain Monte Carlo," Biometrika 106 (2019) 321--337.
+    https://doi.org/10.1093/biomet/asz002
+
+[5] U. Wolff, "Monte Carlo Errors with Less Errors," Computer Physics
+    Communications 156 (2004) 143--153.
+    https://doi.org/10.1016/S0010-4655(03)00467-3
+
+[6] U. Wolff, "Erratum to 'Monte Carlo Errors with Less Errors'," Computer
+    Physics Communications 176 (2007) 383.
+    https://doi.org/10.1016/j.cpc.2006.12.001
+
+[7] G. P. Lepage, ``gvar`` documentation, "Gaussian Random Variables."
+    https://gvar.readthedocs.io/en/latest/gvar.html
 """
 
 from __future__ import annotations
@@ -24,11 +107,13 @@ from .core import (
     StatisticsError,
     UnresolvedAutocorrelation,
     UnresolvedAutocorrelationAction,
+)
+from .core import (
     correlated_values_from_factor,
     factor_spectrum,
     validate_histories,
 )
-from .wolff import ProjectedWolffValidation, validate_projected_wolff
+from .gamma import ProjectedWolffValidation, validate_projected_wolff
 
 
 @dataclass(frozen=True)
@@ -92,10 +177,13 @@ def _estimate(
     if method.maximum_lag >= configuration_count:
         raise StatisticsError("maximum_lag must be smaller than the configuration count")
 
+    # Eqn 2: center each configuration vector about the sample mean.
     means = values.mean(axis=0)
     centered = values - means[np.newaxis, :]
 
     def factor_at(maximum_lag: int) -> tuple[np.ndarray, float]:
+        # Eqns 5 & 6: use the Bartlett weights in the exact
+        # finite-sample correction for centering an otherwise IID history.
         weighted_pair_count = 0.0
         for lag in range(1, maximum_lag + 1):
             weight = 1.0 - lag / (maximum_lag + 1.0)
@@ -105,9 +193,16 @@ def _estimate(
             - 2.0 * weighted_pair_count / configuration_count
         ) / configuration_count
         bandwidth = maximum_lag + 1
+
+        # Eqn 4: construct every length-b rolling sum R_l. Padding by
+        # b - 1 realizes the declared zero extension at both boundaries.
         padded = np.pad(centered, ((bandwidth - 1, bandwidth - 1), (0, 0)),)
         cumulative = np.vstack((np.zeros((1, value_count)), np.cumsum(padded, axis=0)))
         rolling_sums = cumulative[bandwidth:] - cumulative[:-bandwidth]
+
+        # Eqns 3, 5, and 7: overlapping R_l vectors encode the
+        # lag products A_k and their Bartlett weights without constructing
+        # those matrices explicitly; normalization makes each row a row of F.
         factor = rolling_sums / np.sqrt(
             bandwidth
             * configuration_count
@@ -117,6 +212,9 @@ def _estimate(
         return factor, iid_bias_factor
 
     factor, iid_bias_factor = factor_at(method.maximum_lag)
+
+    # Eqn 8: the selected covariance is F^T F. Its diagonal can be
+    # calculated without materializing the full covariance matrix.
     selected_variances = np.sum(factor * factor, axis=0)
     bandwidth_scan_lags: tuple[int, ...] = ()
     bandwidth_comparisons: list[BandwidthComparisonEvidence] = []
@@ -127,16 +225,11 @@ def _estimate(
     if method.stability is not None:
         autocorrelation_status = AutocorrelationResolutionStatus.Resolved
         for comparison_lag in method.stability.comparison_lags:
+            # Re-evaluate Equations (4)--(8) at each comparison bandwidth.
             comparison_factor, _ = factor_at(comparison_lag)
-            comparison_variances = np.sum(
-                comparison_factor * comparison_factor,
-                axis=0,
-            )
+            comparison_variances = np.sum(comparison_factor * comparison_factor, axis=0,)
             scale = np.maximum(
-                np.maximum(
-                    np.abs(selected_variances),
-                    np.abs(comparison_variances),
-                ),
+                np.maximum(np.abs(selected_variances), np.abs(comparison_variances),),
                 np.finfo(float).tiny,
             )
             bandwidth_comparisons.append(
@@ -144,12 +237,7 @@ def _estimate(
                     comparison_lag=comparison_lag,
                     selected_lag=method.maximum_lag,
                     maximum_relative_variance_change=float(
-                        np.max(
-                            np.abs(
-                                selected_variances - comparison_variances
-                            )
-                            / scale
-                        )
+                        np.max(np.abs(selected_variances - comparison_variances) / scale)
                     ),
                 )
             )
@@ -219,6 +307,8 @@ def _estimate(
 
     spectrum = factor_spectrum(factor)
     return LongRunCovarianceEstimate(
+        # Equations (1), (8), (A), and (B): expose mean(X) and F through
+        # correlated values whose covariance is exactly the Bartlett F^T F.
         values=correlated_values_from_factor(means, factor),
         evidence=LongRunCovarianceEvidence(
             method=method,

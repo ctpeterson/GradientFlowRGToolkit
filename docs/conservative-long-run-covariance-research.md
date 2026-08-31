@@ -2,8 +2,8 @@
 
 Status: research note, not a statement of implemented behavior.
 
-This note identifies a defensible replacement for the current rectangular
-lag-sum estimator and answers a narrower question: can the toolkit arrange to
+This note records the research that replaced the former rectangular lag-sum
+estimator and answers a narrower question: can the toolkit arrange to
 overestimate uncertainty when an autocorrelation time is not resolved? The
 short answer is:
 

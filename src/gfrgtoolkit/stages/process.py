@@ -139,6 +139,57 @@ class ProcessingResult:
             )
         )
 
+    def _statistical_report_lines(self) -> tuple[str, ...]:
+        methods = sorted(
+            {
+                (
+                    channel.statistics.estimator,
+                    channel.statistics.source or "unavailable",
+                )
+                for ensemble in self.ensembles
+                for channel in ensemble.channels
+            }
+        )
+        if not methods:
+            return ("statistics: none",)
+        lines = ["statistics:"]
+        for method, source in methods:
+            lines.extend((f"  {method}", f"    source: {source}"))
+        return tuple(lines)
+
+    def _correction_report_lines(self) -> tuple[str, ...]:
+        corrections = {
+            channel.correction.report_description: channel.correction
+            for ensemble in self.ensembles
+            for channel in ensemble.channels
+        }
+        if not corrections:
+            return ("corrections: none",)
+        lines = ["corrections:"]
+        for description in sorted(corrections):
+            evidence = corrections[description]
+            lines.extend((f"  {evidence.method}", f"    source: {evidence.source}"))
+            if evidence.flow_action is not None:
+                lines.append(f"    flow: {evidence.flow_action}")
+            if evidence.gauge_action is not None:
+                lines.append(f"    gauge action: {evidence.gauge_action}")
+            if evidence.energy_density_operator is not None:
+                lines.append(f"    energy: {evidence.energy_density_operator}")
+            if evidence.validity_domain is not None:
+                lines.append(f"    domain: {evidence.validity_domain}")
+            if evidence.numerical_tolerance is not None:
+                lines.append(
+                    "    numerical tolerance: "
+                    f"{evidence.numerical_tolerance:.3g}"
+                )
+            if evidence.implementation_notes:
+                lines.append("    implementation:")
+                lines.extend(
+                    f"      - {note}"
+                    for note in evidence.implementation_notes
+                )
+        return tuple(lines)
+
     def __str__(self) -> str:
         channels = ", ".join(self.measurement_channels) or "none"
         covariance_estimate_count = sum(
@@ -151,14 +202,18 @@ class ProcessingResult:
                 f"excluded ensembles: {len(self.exclusions)}",
                 f"measurement channels: {channels}",
                 f"processed flow-time points: {self.flow_time_point_count}",
-                f"statistics: {', '.join(self.statistical_methods) or 'none'}",
-                f"corrections: {', '.join(self.correction_methods) or 'none'}",
+        ]
+        lines.extend(self._statistical_report_lines())
+        lines.extend(self._correction_report_lines())
+        lines.extend(
+            (
                 "covariance projections: "
                 f"{self.covariance_projection_count}/"
                 f"{covariance_estimate_count} estimates",
                 "maximum relative covariance adjustment: "
                 f"{self.maximum_relative_covariance_adjustment:.3g}",
-        ]
+            )
+        )
         if self.unresolved_autocorrelation_count:
             lines.append(
                 "unresolved autocorrelation estimates: "
@@ -335,14 +390,45 @@ def process_dataset(
     entries = _catalog(configuration.dataset)
     if not entries:
         raise ProcessingError("dataset selection contains no ensemble files")
+    if configuration.verbosity >= 1:
+        print(
+            f"Processing {len(entries)} selected ensemble(s)",
+            flush=True,
+        )
 
     ensembles = []
     exclusions = []
-    for entry in entries:
-        try: ensembles.append(_process_entry(entry, configuration, nc, gauge_action))
+    for index, entry in enumerate(entries, start=1):
+        progress = f"[{index}/{len(entries)}]"
+        if configuration.verbosity >= 1:
+            print(
+                f"{progress} working on coupling={entry.key.coupling}, "
+                f"volume={entry.key.volume}, mass={entry.key.mass}, "
+                f"flow={entry.flow}",
+                flush=True,
+            )
+        try:
+            ensembles.append(
+                _process_entry(entry, configuration, nc, gauge_action)
+            )
         except ProcessingError as error:
             exclusions.append(ExcludedDatasetEntry(path=entry.path, reason=str(error)))
+            if configuration.verbosity >= 1:
+                print(f"{progress} excluded: {error}", flush=True)
+        else:
+            if configuration.verbosity >= 1:
+                print(f"{progress} completed", flush=True)
     if not ensembles:
         reasons = "; ".join(exclusion.reason for exclusion in exclusions)
         raise ProcessingError(f"no selected ensemble could be processed: {reasons}")
-    return ProcessingResult(ensembles=tuple(ensembles), exclusions=tuple(exclusions))
+    result = ProcessingResult(
+        ensembles=tuple(ensembles),
+        exclusions=tuple(exclusions),
+    )
+    if configuration.verbosity >= 1:
+        print(
+            f"Processing complete: {len(ensembles)} processed, "
+            f"{len(exclusions)} excluded",
+            flush=True,
+        )
+    return result

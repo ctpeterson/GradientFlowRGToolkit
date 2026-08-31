@@ -8,7 +8,6 @@ import numpy as np
 
 from ...errors import ConfigurationError
 from .core import (
-    CovarianceProjection,
     CovarianceProjectionEvidence,
     LongRunCovarianceEstimate,
     LongRunCovarianceEvidence,
@@ -25,7 +24,6 @@ class LugsailBatchMeans:
     batch_size: int
     lugsail_scale: int = 3
     lugsail_weight: float = 0.5
-    covariance_projection: CovarianceProjection = CovarianceProjection.NearestPSD
 
     def __post_init__(self) -> None:
         if isinstance(self.batch_size, bool) or not isinstance(self.batch_size, int):
@@ -45,9 +43,6 @@ class LugsailBatchMeans:
         ): raise ConfigurationError("lugsail_weight must satisfy 0 < lugsail_weight < 1")
         if self.lugsail_weight <= 1.0 / self.lugsail_scale:
             raise ConfigurationError("over-lugsail requires lugsail_weight > 1 / lugsail_scale")
-        if not isinstance(self.covariance_projection, CovarianceProjection):
-            raise ConfigurationError("lugsail covariance_projection must be a CovarianceProjection")
-
     def estimate(self, histories: np.ndarray) -> LongRunCovarianceEstimate:
         """Estimate the configured over-lugsail systematic variation."""
         return _estimate(histories, self)
@@ -141,7 +136,7 @@ def _estimate(
             ),
             rank_tolerance=rank_tolerance,
             covariance=CovarianceProjectionEvidence(
-                policy=method.covariance_projection,
+                policy="nearest-positive-semidefinite",
                 projected_mode_count=projected_mode_count,
                 minimum_eigenvalue_before=min(
                     0.0,

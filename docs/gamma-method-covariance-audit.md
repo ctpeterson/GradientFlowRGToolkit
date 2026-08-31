@@ -1,6 +1,6 @@
 # Audit of the full-covariance Gamma-method estimator
 
-Status: historical methodology audit of the quarantined experimental method.
+Status: historical methodology audit of the removed experimental method.
 
 ## Executive conclusion
 
@@ -40,8 +40,8 @@ multivariate autoregressive processes with known long-run covariance.
 
 ## Code under audit
 
-The quarantined implementation is
-[`experimental_rectangular.py`](../src/gfrgtoolkit/stages/statistics/experimental_rectangular.py).
+The audited toolkit implementation was removed after this review established
+that it had no defensible scientific role.
 The legacy implementation is
 [`../ContinuousBetaFunction/src/betafn/processing/gamma.py`](../../ContinuousBetaFunction/src/betafn/processing/gamma.py).
 

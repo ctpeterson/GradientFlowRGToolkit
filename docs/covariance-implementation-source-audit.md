@@ -20,7 +20,9 @@ implementation has resolved its three actionable findings:
    is now performed in a sample-supported low-rank factor space; and
 3. projected Wolff validation accepts declared linear combinations and an
    optional relative-variance threshold that participates in the existing
-   record-or-raise unresolved policy.
+   record-or-raise unresolved policy; and
+4. the unsourced rectangular heuristic and its misleading `GammaMethod`
+   aliases were removed from the implementation and public interface.
 
 The detailed sections below remain useful as the derivation and audit trail,
 but statements phrased as “current” describe the audited pre-closeout
@@ -37,7 +39,7 @@ mostly faithful to its cited source:
 | `MultivariateBatchMeans` | Implements the multivariate batch-means estimator, divided by the used sample count so that the returned object is the covariance of the sample mean rather than the CLT time-average covariance. |
 | `LugsailBatchMeans` | Implements the paper's lugsail linear combination with the paper's default over-lugsail parameters. Its direct covariance eigenvalue clipping is **not** the positive-definite correlation-matrix adjustment published in the paper. |
 | `ProjectedWolffValidation` | Closely implements Wolff's scalar automatic window calculation, separately for each coordinate. It is a validator of marginal variances, not a full-covariance Gamma-method estimator. |
-| `ExperimentalRectangularLongRunCovariance` | Contains a standard-looking rectangular lag sum surrounded by an unsourced window-selection heuristic and an ad hoc nearest-PSD repair. Its `source=None` and experimental name are scientifically appropriate. It must not be described as Wolff's Gamma method. |
+| Removed rectangular heuristic | Combined a rectangular lag sum with an unsourced window-selection heuristic and an ad hoc nearest-PSD repair. The audit established that it was not Wolff's Gamma method, and it was subsequently removed. |
 
 Three follow-up issues deserve explicit attention:
 
@@ -676,7 +678,10 @@ gradient machinery.
 - **Agreement criterion:** recorded but not enforced.
 - **Source field:** publication DOI is appropriate.
 
-## 7. Experimental rectangular estimator
+## 7. Removed experimental rectangular estimator
+
+This section is a historical audit of code that has since been removed from
+the toolkit and public interface.
 
 ### 7.1 What the code computes
 
@@ -773,10 +778,11 @@ rank no larger than \(N-1\). Batch means has rank no larger than \(a-1\).
 Consequently, singularity for \(p\ge N\) is expected evidence, not a defect.
 
 The Bartlett and ordinary batch-means implementations preserve this rank
-honestly through factors. Lugsail and experimental rectangular methods form
-dense matrices and diagonalize them. Their PSD projections can remove
-negative directions but cannot supply independently observed information in
-the sample null space.
+honestly through factors. Lugsail forms a reduced matrix in the
+sample-supported row space and diagonalizes it. The removed rectangular
+heuristic instead formed a dense matrix. PSD projections can remove negative
+directions but cannot supply independently observed information in the sample
+null space.
 
 This matters for downstream fits: none of the cited covariance-estimation
 papers licenses silently inverting a rank-deficient matrix. Any dimension

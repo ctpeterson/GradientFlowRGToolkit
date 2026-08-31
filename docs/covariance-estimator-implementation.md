@@ -1085,130 +1085,16 @@ This design keeps low-quality data analyzable by default: unresolved evidence
 travels with the result. It does not pretend that the unseen tail has a known
 upper bound.
 
-# Experimental rectangular lag-sum heuristic
+# Rejected rectangular lag-sum heuristic
 
-## Scientific status
-
-`ExperimentalRectangularLongRunCovariance` is retained for differential
-comparison with an earlier agent-generated implementation. The transitional
-alias `GammaMethod` points to it only so early notebooks continue to import;
-the source explicitly states:
-
-```python
-# Transitional import alias for early notebooks.
-# This is not Wolff's method.
-GammaMethod = ExperimentalRectangularLongRunCovariance
-```
-
-Its evidence has `source=None`. It must not be cited as Wolff's Gamma method
-or treated as a canonical full-covariance extension.
-
-## Diagonal window probe
-
-The heuristic begins with population-normalized centered variances and an
-integrated time of (1/2):
-
-```python
-variances = np.sum(centered * centered, axis=0) \
-    / configuration_count
-safe_variances = np.where(
-    variances > 0.0,
-    variances,
-    1.0,
-)
-integrated_times = np.full(value_count, 0.5)
-maximum_probe = min(configuration_count // 4, 1000)
-```
-
-At each probe lag, it forms coordinate autocorrelations
-
-$$
-\widehat\rho_i(k)
-=\frac{
-\sum_{t=0}^{N-k-1}Z_{ti}Z_{t+k,i}
-}{N\widehat\Gamma_i(0)}.
-$$
-
-Only positive correlations inside a coordinate-dependent provisional window
-are accumulated:
-
-```python
-correlations = (
-    np.sum(centered[:-lag] * centered[lag:], axis=0)
-    / (configuration_count * safe_variances)
-)
-active = (
-    (correlations > 0.0)
-    & (lag < method.window_factor * integrated_times)
-)
-integrated_times = np.where(
-    active,
-    integrated_times + correlations,
-    integrated_times,
-)
-if not active.any():
-    break
-```
-
-This is already materially different from Wolff's automatic window:
-
-- negative autocorrelations are not accumulated;
-- all probing stops as soon as no coordinate is active at one lag;
-- the lag normalization is (N), not (N-k);
-- there is no Wolff noise-versus-tail window function;
-- there is no typed unresolved state.
-
-## One common rectangular matrix window
-
-The largest probed coordinate time chooses one matrix window:
-
-```python
-window = max(
-    4,
-    int(np.ceil(
-        method.window_factor * float(integrated_times.max())
-    )),
-)
-window = min(window, configuration_count // 4)
-```
-
-Then the full symmetric rectangular lag sum is formed:
-
-```python
-covariance_sum = centered.T @ centered
-for lag in range(1, window + 1):
-    lagged = centered[:-lag].T @ centered[lag:]
-    covariance_sum += lagged + lagged.T
-covariance = covariance_sum / (
-    configuration_count * configuration_count
-)
-covariance = 0.5 * (covariance + covariance.T)
-```
-
-In formulas,
-
-$$
-\widehat C_{\mathrm{rect}}(W)
-=\frac1{N^2}
-\left[
-A_0+\sum_{k=1}^{W}(A_k+A_k^{\mathsf T})
-\right].
-\tag{6}
-$$
-
-Unlike Bartlett's triangular kernel, a finite rectangular kernel is not
-guaranteed PSD. The implementation clips every negative eigenvalue to zero
-and records the relative adjustment. It also applies no IID sample-centering
-correction to Eq. (6).
-
-## Appropriate use
-
-Use this class only to reproduce or investigate legacy behavior. Its useful
-properties are that it preserves full cross-covariance, uses one common
-matrix window, and records its PSD repair. Those properties do not supply a
-literature justification for its window rule. Bartlett, ordinary batch means,
-over-lugsail variation, and projected Wolff validation have clearer and
-separately documented scientific roles.
+An earlier agent-generated estimator selected a common rectangular bandwidth
+from a heuristic diagonal probe, formed a rectangular full-matrix lag sum,
+and clipped its negative eigenvalues. It was removed from the implementation
+and public interface after audit because the selection rule was unsourced,
+was not Wolff's automatic window, and required a scientific transformation to
+repair an indefinite estimate. The historical calculation and reasons for
+rejection remain in `gamma-method-covariance-audit.md` and
+`covariance-implementation-source-audit.md`.
 
 # Covariance projection evidence
 
@@ -1218,7 +1104,7 @@ intervention used to make it acceptable as a covariance:
 ```python
 @dataclass(frozen=True)
 class CovarianceProjectionEvidence:
-    policy: CovarianceProjection | None
+    policy: Literal["nearest-positive-semidefinite"] | None
     projected_mode_count: int
     minimum_eigenvalue_before: float
     maximum_eigenvalue_before: float
@@ -1232,7 +1118,8 @@ class CovarianceProjectionEvidence:
 Interpret the fields together:
 
 - `policy=None` means structural PSD; no repair was part of the method;
-- a non-`None` policy declares that the method permits a repair;
+- `policy="nearest-positive-semidefinite"` identifies the fixed repair used
+  by the over-lugsail implementation;
 - `projected_mode_count=0` means no substantive repair was triggered in that
   estimate;
 - the pre-projection eigenvalue range shows the original matrix scale;
@@ -1243,21 +1130,28 @@ Projection makes a matrix usable as a covariance; it does not make a noisy or
 under-resolved estimator scientifically accurate. A large adjustment should
 be treated as a diagnostic, not hidden as routine roundoff.
 
+The projection policy is evidence, not configuration. `LugsailBatchMeans`
+always uses this repair because its signed covariance combination can be
+indefinite; the public `CovarianceProjection` enum was removed because its
+single value implied a choice that the implementation did not provide.
+
 # Reading the result report
 
-`ProcessingResult.statistical_methods` includes the stable estimator identity
-and source:
+`ProcessingResult` renders each stable estimator identity and source as a
+vertical evidence block:
 
-```python
-f"{channel.statistics.estimator} "
-f"[source: {channel.statistics.source or 'unavailable'}]"
+```text
+statistics:
+  bartlett-newey-west
+    source: https://doi.org/10.2307/1913610#equation-5
 ```
 
 A representative report therefore contains lines of this form:
 
 ```text
-statistics: bartlett-newey-west
-  [source: https://doi.org/10.2307/1913610#equation-5]
+statistics:
+  bartlett-newey-west
+    source: https://doi.org/10.2307/1913610#equation-5
 covariance projections: 0/1 estimates
 maximum relative covariance adjustment: 0
 unresolved autocorrelation estimates: 1/1
@@ -1290,7 +1184,6 @@ print(evidence.covariance.relative_frobenius_adjustment)
 | Multivariate batch means | Yes | Explicit batch size | Structural factor | Batch-size comparisons are external | Independent comparator |
 | Over-lugsail batch means | Yes | Explicit large/small batches | Difference may be projected | Bias direction recorded, no resolution test | Conservative systematic variation for positive persistence |
 | Projected Wolff | Diagonal only | Automatic scalar window up to explicit cap | Not a matrix estimator | Unresolved coordinate count | Validator for Bartlett diagonals |
-| Experimental rectangular | Yes | Heuristic diagonal probe, one common window | Always eigenvalue-clipped when negative | None | Legacy differential comparison only |
 
 # Failure modes and what is deliberately not promised
 
@@ -1482,8 +1375,6 @@ the Bartlett maximum lag, and (a) the batch count.
   reduced eigendecomposition cost approximately (O(q^2p+q^3)), where (q)
   is the total number of large- and small-batch rows; it does not construct a
   dense (p\times p) covariance.
-- Experimental rectangular estimation likewise constructs and diagonalizes a
-  dense $p\times p$ matrix.
 - Projected Wolff validation scans scalar coordinate and declared-projection
   products through its lag cap; it avoids (p\times p) lag matrices.
 
@@ -1500,7 +1391,7 @@ present in the factor.
 | Multivariate spectral-variance consistency | D. Vats, J. M. Flegal, and G. Jones, [arXiv:1507.08266](https://arxiv.org/abs/1507.08266) | Theoretical context for common-window full matrices |
 | Multivariate batch means | D. Vats, J. M. Flegal, and G. Jones, DOI [10.1093/biomet/asz002](https://doi.org/10.1093/biomet/asz002) | Independent full-matrix comparator |
 | Lugsail windows and over-lugsail bias direction | D. Vats and J. M. Flegal, DOI [10.1093/biomet/asab049](https://doi.org/10.1093/biomet/asab049) | Positive-leading-bias systematic variation |
-| Rectangular diagonal-probe heuristic | No canonical source | Explicitly experimental legacy comparator |
+| Rectangular diagonal-probe heuristic | No canonical source | Rejected and removed after audit |
 | Exact IID Bartlett sample-centering factor, Eq. (3) above | Direct toolkit derivation | Recorded separately; not attributed to Newey--West |
 
 # File map
@@ -1510,9 +1401,8 @@ present in the factor.
 | Protocol, validation, evidence, factor propagation, rank | `statistics/core.py` |
 | Bartlett/Newey--West and stability policy | `statistics/bartlett.py` |
 | Ordinary multivariate batch means | `statistics/batch_means.py` |
-| Positive-leading-bias over-lugsail variation | `statistics/lugsail_batch_means.py` |
-| Projected scalar Wolff validator | `statistics/wolff.py` |
-| Quarantined rectangular heuristic | `statistics/experimental_rectangular.py` |
+| Positive-leading-bias over-lugsail variation | `statistics/lugsail.py` |
+| Projected scalar Wolff validator | `statistics/gamma.py` |
 | Aggregate statistical imports | `statistics/__init__.py` |
 | Joint history assembly and result reporting | `stages/process.py` |
 | Higher-level method injection | `setup.py` |

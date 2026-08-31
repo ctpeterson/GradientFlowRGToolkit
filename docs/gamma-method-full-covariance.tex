@@ -37,10 +37,10 @@
 \begin{center}
 \fcolorbox{warningRed}{noteGray}{
   \parbox{0.88\textwidth}{
-    \textbf{Current scientific status: experimental.}
-    This note audits the estimator now named
-    \code{ExperimentalRectangularLongRunCovariance}; it is no longer the
-    primary estimator.  The adopted Bartlett/Newey--West implementation and
+    \textbf{Current scientific status: removed.}
+    This note audits the former agent-generated rectangular estimator. It was
+    removed from the toolkit and public interface after this audit. The
+    adopted Bartlett/Newey--West implementation and
     its validators are documented in
     \code{long-run-covariance-methods.pdf}.
     The full long-run covariance matrix is a standard quantity already
@@ -293,9 +293,8 @@ pass the following tests:
 A defensible comparison would include (i) a faithful Wolff calculation for
 selected scalar derived quantities and (ii) a sourced multivariate
 spectral estimator, such as Bartlett/Newey--West with an explicit bandwidth
-policy. Until that comparison is complete, the current rectangular estimator
-plus projection should be named as an experimental comparator, not frozen in
-as ``the Gamma method.''
+policy. The former rectangular estimator plus projection was therefore
+removed rather than frozen in as ``the Gamma method.''
 
 \section{Conclusion}
 

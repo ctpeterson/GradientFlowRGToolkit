@@ -18,6 +18,10 @@ Autocorrelation diagnostics record unresolved evidence without blocking an
 exploratory result by default. Analyses that require a hard publication or CI
 gate can opt into `UnresolvedAutocorrelationAction.Raise`.
 
+Set `ProcessingConfiguration.verbosity=1` to stream deterministic
+per-ensemble progress and exclusion reasons while processing. The default
+`verbosity=0` remains quiet for library and test use.
+
 See the
 [compiled long-run covariance guide](docs/long-run-covariance-methods.pdf)
 and its

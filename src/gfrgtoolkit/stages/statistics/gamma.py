@@ -32,10 +32,7 @@ class ProjectedWolffValidation:
         if self.relative_variance_tolerance is not None and (
             not np.isfinite(self.relative_variance_tolerance)
             or self.relative_variance_tolerance <= 0.0
-        ):
-            raise ConfigurationError(
-                "Wolff relative_variance_tolerance must be positive and finite"
-            )
+        ): raise ConfigurationError("Wolff relative_variance_tolerance must be positive and finite")
         projections = tuple(
             tuple(float(coefficient) for coefficient in projection)
             for projection in self.projections
@@ -48,10 +45,7 @@ class ProjectedWolffValidation:
             not np.all(np.isfinite(projection))
             or not np.any(np.asarray(projection) != 0.0)
             for projection in projections
-        ):
-            raise ConfigurationError(
-                "Wolff projections must be finite and nonzero"
-            )
+        ): raise ConfigurationError("Wolff projections must be finite and nonzero")
         object.__setattr__(self, "projections", projections)
 
 
@@ -80,12 +74,8 @@ def validate_projected_wolff(
     if validation.projections:
         projection_matrix = np.asarray(validation.projections, dtype=float)
         if projection_matrix.shape[1] != coordinate_count:
-            raise StatisticsError(
-                "Wolff projection dimension must match the history value count"
-            )
-        assessment_matrix = np.vstack(
-            (np.eye(coordinate_count), projection_matrix)
-        )
+            raise StatisticsError("Wolff projection dimension must match the history value count")
+        assessment_matrix = np.vstack((np.eye(coordinate_count), projection_matrix))
         centered = centered @ assessment_matrix.T
         selected_factor = selected_factor @ assessment_matrix.T
     value_count = centered.shape[1]
@@ -167,7 +157,5 @@ def validate_projected_wolff(
         relative_variance_tolerance=validation.relative_variance_tolerance,
         assessed_coordinate_count=coordinate_count,
         declared_projection_count=len(validation.projections),
-        unresolved_declared_projection_count=(
-            unresolved_declared_projection_count
-        ),
+        unresolved_declared_projection_count=(unresolved_declared_projection_count),
     )

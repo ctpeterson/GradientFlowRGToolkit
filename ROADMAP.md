@@ -75,9 +75,9 @@ finite-ensemble estimates
 - [x] implement the public imports, `RunningCoupling`, and
   `ProcessingConfiguration` required by the tracer bullet;
 - [x] replace the inherited rectangular covariance default with joint
-  Bartlett/Newey--West, retain the legacy calculation only as an experimental
-  comparator, and add batch-means, over-lugsail, projected-Wolff, and
-  unresolved-tail evidence paths;
+  Bartlett/Newey--West, remove the unsourced legacy heuristic after auditing
+  it, and add batch-means, over-lugsail, projected-Wolff, and unresolved-tail
+  evidence paths;
 - introduce an `AnalysisPlan` only when the first post-processing stage gives
   it concrete behavior to own;
 - support only the flow/operator/correction/model combinations the workflow
